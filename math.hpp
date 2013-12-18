@@ -4,9 +4,11 @@
 typedef boost::rational<int> Irat;
 
 inline int norm2(int3 v){ return v.x * v.x + v.y * v.y + v.z * v.z; }
-inline double norm(double3 v){ return sqrt(v.x * v.x + v.y * v.y + v.z * v.z); }
+inline double norm2(double3 v){ return v.x * v.x + v.y * v.y + v.z * v.z; }
+inline double norm(double3 v){ return sqrt(norm2(v)); }
 inline double norm(int3 v){ return sqrt(norm2(v)); }
-inline void normalize(double3& v){ double n = norm(v); v.x /= n; v.y /= n; v.z /= n; }
+inline double3 normalized(int3 v){ double n = norm(v); return { v.x / n, v.y / n, v.z / n }; }
+inline double3 normalized(double3 v){ double n = norm(v); return { v.x / n, v.y / n, v.z / n }; }
 inline double inner(double3 v1, double3 v2){ return v1.x * v2.x + v1.y * v2.y + v1.z * v2.z; }
 inline double inner(int3 v1, double3 v2){ return v1.x * v2.x + v1.y * v2.y + v1.z * v2.z; }
 inline int3 cross_int3(int3 pv, int3 qv){
@@ -42,10 +44,11 @@ double condition_2x2(double* arr){
   return sqrt(eig1 > eig2 ? eig1 : eig2); }
 
 double crystal_condition(int3 pv, int3 qv){
+  double normP = norm(pv);
   int3 perp = cross_int3(pv, qv);
   int3 newv = cross_int3(pv, perp);
-  double normN = norm(newv); double3 nvu = { newv.x / normN, newv.y / normN, newv.z / normN };
-  double normP = norm(pv);   double3 pvu = { pv.x / normP, pv.y / normP, pv.z / normP };
+  double3 nvu = normalized(newv);
+  double3 pvu = normalized(pv);
   double mat[4] = { normP, inner(qv, pvu),
                     0,     inner(qv, nvu) };
   return condition_2x2(mat); }
