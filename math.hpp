@@ -24,11 +24,12 @@ int3 canonical_miller(int3 m){
   int common = boost::gcd(vec[0], boost::gcd(vec[1], vec[2]));
   return { vec[0] / common, vec[1] / common, vec[2] / common}; }
 
-double z_full_mult(int3 pv, int3 qv){
+double z_full_mult(int3 pv, int3 qv, double* _d = NULL){
   int3 zv = cross_int3(pv, qv); int denom = norm2(zv);
   Irat cx(zv.x, denom); Irat cy(zv.y, denom); Irat cz(zv.z, denom);
   int mult = boost::lcm(cx.denominator(), boost::lcm(cy.denominator(), cz.denominator()));
   double d = 1.0 / sqrt(denom);
+  if(_d) *_d = d;
   std::cout << "crystal plane spacing(sigma=1): " << d << "\n"
             << "z-periodic multiplier(sigma=1): " << mult << std::endl;
   return mult * d; }

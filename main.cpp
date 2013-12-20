@@ -35,19 +35,37 @@ template <typename T> double calc_conv_eq_max(CPUArray<T>& arrr){
 int main(int argc, char* argv[]){
   int device, max_iters;
   int3 dims, miller;
+  bool dims_set;
   try {
     TCLAP::CmdLine cmd("Gamma(Miller-indices)", ' ', "0.1");
     TCLAP::ValueArg<int> deviceArg("g", "gpu", "compute device number", false, 0, "gpu device", cmd);
     TCLAP::ValueArg<int> iterArg("i", "iters", "number of iterations", false, -1, "iterations", cmd);
-    TCLAP::ValueArg<Int3Arg> dimsArg("d", "dims", "Array dimensions of the problem", true, Int3Arg(), "N0xN1xN2", cmd);
+    TCLAP::ValueArg<Int3Arg> dimsArg("d", "dims", "Array dimensions of the problem", false, Int3Arg(), "N0xN1xN2", cmd);
     TCLAP::ValueArg<Int3Arg> millerArg("m", "miller", "Miller-indices of crystal plane", false, Int3Arg(0, 0, 1), "M1xM2xM3", cmd);
     cmd.parse(argc, argv);
     device =    deviceArg.getValue();
     dims =      dimsArg.getValue().m_int3;
+    dims_set = dimsArg.isSet();
     max_iters = iterArg.getValue();
     miller =    canonical_miller(millerArg.getValue().m_int3); }
   catch (TCLAP::ArgException& e){
     std::cerr << "error: " << e.error() << " for arg " << e.argId() << std::endl; }
+
+  // bcc initialization
+  Problem<Float> prob(miller, dims, dims_set,
+                      // psi-liquid
+                      -0.39279377398,
+                      // psi-solid
+                      -0.39279377398 + 0.043931,
+                      // sigma ideal
+                      PIX2 * sqrt(2.0),
+                      // sigma correction
+                      1.0110354,
+                      // eps
+                      0.3,
+                      // zmul
+                      30);
+  dims = prob.m_dims;
 
   CUERR(cudaSetDevice(device));
   std::cout << "device <" << device << "> selected" << std::endl;
@@ -64,20 +82,6 @@ int main(int argc, char* argv[]){
   CufftPlan<Float, R2C> r2c(dims);
   CufftPlan<Float, C2R> c2r(dims);
 
-  // bcc initialization
-  Problem<Float> prob(miller, dims,
-                      // psi-liquid
-                      -0.39279377398,
-                      // psi-solid
-                      -0.39279377398 + 0.043931,
-                      // sigma ideal
-                      PIX2 * sqrt(2.0),
-                      // sigma correction
-                      1.0110354,
-                      // eps
-                      0.3,
-                      // zmul
-                      30);
   prob.init_slab(arr_master, false);                                                  // r-psi initialized on cpu
   arr_master.save_as_real("start.npy", 0);
 
@@ -107,7 +111,7 @@ int main(int argc, char* argv[]){
       // cpu side of testing convergence 
       arr_master.ovwrt_with(arr_gpu_tmp);
       double conv = calc_conv_eq_max(arr_master);
-      printf("\t%e", conv);
+      printf("\t%.10e", conv);
       // cpu side of calculating interface energy
       c2r.execute(arr_energy);
       norm_kernel_call(arr_energy.real_ptr(), dims.x * dims.y * dims.z);
@@ -115,7 +119,7 @@ int main(int argc, char* argv[]){
       arr_master_2.ovwrt_with(arr_energy);
       //                             lin. part     r-psi
       double gamma = prob.calc_gamma(arr_master_2, arr_master);
-      printf("\t%e\n", gamma);
+      printf("\t%.10e\n", gamma);
     }else{
       update_kernel_call(arr_sec.complex_ptr(),                                // k-psi
                          arr_pri.complex_ptr(),                                // k-nonlin
