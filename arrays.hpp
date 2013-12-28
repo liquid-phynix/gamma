@@ -44,7 +44,7 @@ template <typename T> struct GPUArray : public Array <T> {
 template <typename T> struct CPUArray : public Array <T> {
   CPUArray(int3 dims): Array<T>(dims){
     CUERR(cudaHostAlloc((void**)&this->m_array, this->m_bytes, cudaHostAllocDefault)); }
-  ~CPUArray(){ CUERR(cudaFreeHost(this->m_array)); }
+  ~CPUArray(){ CUERR(cudaFreeHost(this->m_array)); std::cout << "~CPUArray" << std::endl; }
   inline T& operator[](int3 idx){ return this->m_array[idx.x * this->m_real_dims.y * this->m_real_dims.z + idx.y * this->m_real_dims.z + idx.z]; }
   void ovwrt_with(GPUArray<T>& arr){
     assert(this->real_dims() == arr.real_dims()

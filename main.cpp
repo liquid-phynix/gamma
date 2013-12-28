@@ -1,5 +1,6 @@
 #include <iostream>
 #include <cstdio>
+#include <csignal>
 #include <algorithm>
 #include <functional>
 #include <complex>
@@ -31,6 +32,12 @@ template <typename T> double calc_conv_eq_max(CPUArray<T>& arrr){
   double conv = fabs(arr[0]);
   for(int i = 0; i < len; i++) conv = conv > fabs(arr[i]) ? conv : fabs(arr[i]);
   return conv; }
+
+bool RUN = true;
+
+void sigint_handler(int){
+  RUN = false;
+  std::cerr << "terminating" << std::endl; }
 
 int main(int argc, char* argv[]){
   int device, max_iters;
@@ -88,10 +95,13 @@ int main(int argc, char* argv[]){
   arr_pri.ovwrt_with(arr_master);                                              // r-psi uploaded to arr_pr
   r2c.execute(arr_pri, arr_sec);                                               // k-psi in arr_sec
 
+
+  signal(SIGINT, sigint_handler);
+
   // problem solution
   int iters = 0;
   std::cerr << "iters\tconv\tgamma" << std::endl;
-  while(iters++ < max_iters){
+  while(RUN && iters++ < max_iters){
     nonlin_kernel_call(arr_pri.real_ptr(), dims.x * dims.y * dims.z);          // r-nonlin in arr_pri
     r2c.execute(arr_pri);                                                      // k-nonlin in A0
     
