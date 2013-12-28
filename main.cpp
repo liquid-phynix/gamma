@@ -1,7 +1,9 @@
 #include <iostream>
+//#include <fstream>
 #include <cstdio>
 #include <csignal>
 #include <algorithm>
+#include <string>
 #include <functional>
 #include <complex>
 #include <cuda.h>
@@ -10,7 +12,8 @@
 #include <tclap/CmdLine.h>
 #include <boost/rational.hpp>
 
-#include "npy.h"
+//#include "npy.h"
+#include "npyutil.hpp"
 #include "error.hpp"
 #include "technicality.hpp"
 #include "math.hpp"
@@ -37,14 +40,16 @@ bool RUN = true;
 
 void sigint_handler(int){
   RUN = false;
-  std::cerr << "terminating" << std::endl; }
+  std::cerr << "\nterminating..." << std::endl; }
 
 int main(int argc, char* argv[]){
   int device, max_iters;
   int3 dims, miller;
   bool dims_set;
+  std::string load_file;
   try {
     TCLAP::CmdLine cmd("Gamma(Miller-indices)", ' ', "0.1");
+    TCLAP::ValueArg<std::string> loadArg("l", "load", "start over from this file", false, "", "input file", cmd);
     TCLAP::ValueArg<int> deviceArg("g", "gpu", "compute device number", false, 0, "gpu device", cmd);
     TCLAP::ValueArg<int> iterArg("i", "iters", "number of iterations", false, -1, "iterations", cmd);
     TCLAP::ValueArg<Int3Arg> dimsArg("d", "dims", "Array dimensions of the problem", false, Int3Arg(), "N0xN1xN2", cmd);
@@ -54,7 +59,8 @@ int main(int argc, char* argv[]){
     dims =      dimsArg.getValue().m_int3;
     dims_set = dimsArg.isSet();
     max_iters = iterArg.getValue();
-    miller =    canonical_miller(millerArg.getValue().m_int3); }
+    miller =    canonical_miller(millerArg.getValue().m_int3);
+    load_file = loadArg.getValue(); }
   catch (TCLAP::ArgException& e){
     std::cerr << "error: " << e.error() << " for arg " << e.argId() << std::endl; }
 
@@ -89,7 +95,7 @@ int main(int argc, char* argv[]){
   CufftPlan<Float, R2C> r2c(dims);
   CufftPlan<Float, C2R> c2r(dims);
 
-  prob.init_slab(arr_master, false);                                                  // r-psi initialized on cpu
+  prob.init_slab(arr_master, false, load_file);                                                  // r-psi initialized on cpu
   arr_master.save_as_real("start.npy", 0);
 
   arr_pri.ovwrt_with(arr_master);                                              // r-psi uploaded to arr_pr

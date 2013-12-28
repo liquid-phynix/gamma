@@ -44,7 +44,7 @@ template <typename T> struct GPUArray : public Array <T> {
 template <typename T> struct CPUArray : public Array <T> {
   CPUArray(int3 dims): Array<T>(dims){
     CUERR(cudaHostAlloc((void**)&this->m_array, this->m_bytes, cudaHostAllocDefault)); }
-  ~CPUArray(){ CUERR(cudaFreeHost(this->m_array)); std::cout << "~CPUArray" << std::endl; }
+  ~CPUArray(){ CUERR(cudaFreeHost(this->m_array)); }
   inline T& operator[](int3 idx){ return this->m_array[idx.x * this->m_real_dims.y * this->m_real_dims.z + idx.y * this->m_real_dims.z + idx.z]; }
   void ovwrt_with(GPUArray<T>& arr){
     assert(this->real_dims() == arr.real_dims()
@@ -58,16 +58,18 @@ template <typename T> struct CPUArray : public Array <T> {
   ComplexSaveFunSig get_save_fun_complex();
   void save_as_real(const char* fmt, const int it){
     char fn[256]; sprintf(fn, fmt, it);
-    int shape[] = { this->real_axis(0),
-                    this->real_axis(1),
-                    this->real_axis(2) };
-    get_save_fun_real()(fn, 0, 0, 3, shape, this->m_array); }
+    aoba::SaveArrayAsNumpy(fn,
+                           this->real_axis(0),
+                           this->real_axis(1),
+                           this->real_axis(2),
+                           this->real_ptr()); }
   void save_as_complex(const char* fmt, const int it){
     char fn[256]; sprintf(fn, fmt, it);
-    int shape[] = { this->complex_axis(0),
-                    this->complex_axis(1),
-                    this->complex_axis(2) };
-    get_save_fun_complex()(fn, 0, 0, 3, shape, this->m_array); }
+    aoba::SaveArrayAsNumpy(fn,
+                           this->complex_axis(0),
+                           this->complex_axis(1),
+                           this->complex_axis(2),
+                           this->complex_ptr()); }
 };
 
 template <typename T> void GPUArray<T>::ovwrt_with(CPUArray<T>& arr){
@@ -75,12 +77,12 @@ template <typename T> void GPUArray<T>::ovwrt_with(CPUArray<T>& arr){
          and "source and target array dimensions dont match up");
   cudaMemcpy(this->m_array, arr.void_ptr(), this->m_bytes, cudaMemcpyHostToDevice); }
 
-template <> CPUArray<float>::RealSaveFunSig
-CPUArray<float>::get_save_fun_real(){     return npy_save_float; }
-template <> CPUArray<float>::ComplexSaveFunSig
-CPUArray<float>::get_save_fun_complex(){  return npy_save_float_complex; }
+// template <> CPUArray<float>::RealSaveFunSig
+// CPUArray<float>::get_save_fun_real(){     return npy_save_float; }
+// template <> CPUArray<float>::ComplexSaveFunSig
+// CPUArray<float>::get_save_fun_complex(){  return npy_save_float_complex; }
 
-template <> CPUArray<double>::RealSaveFunSig
-CPUArray<double>::get_save_fun_real(){    return npy_save_double; }
-template <> CPUArray<double>::ComplexSaveFunSig
-CPUArray<double>::get_save_fun_complex(){ return npy_save_double_complex; }
+// template <> CPUArray<double>::RealSaveFunSig
+// CPUArray<double>::get_save_fun_real(){    return npy_save_double; }
+// template <> CPUArray<double>::ComplexSaveFunSig
+// CPUArray<double>::get_save_fun_complex(){ return npy_save_double_complex; }
