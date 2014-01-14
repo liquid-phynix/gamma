@@ -43,7 +43,8 @@ template <typename T> struct GPUArray : public Array <T> {
 
 template <typename T> struct CPUArray : public Array <T> {
   CPUArray(int3 dims): Array<T>(dims){
-    CUERR(cudaHostAlloc((void**)&this->m_array, this->m_bytes, cudaHostAllocDefault)); }
+    CUERR(cudaHostAlloc((void**)&this->m_array, this->m_bytes, cudaHostAllocDefault));
+    memset(this->void_ptr(), 0, this->m_bytes); }
   ~CPUArray(){ CUERR(cudaFreeHost(this->m_array)); }
   inline T& operator[](int3 idx){ return this->m_array[idx.x * this->m_real_dims.y * this->m_real_dims.z + idx.y * this->m_real_dims.z + idx.z]; }
   void ovwrt_with(GPUArray<T>& arr){
@@ -52,10 +53,6 @@ template <typename T> struct CPUArray : public Array <T> {
     cudaMemcpy(this->m_array, arr.void_ptr(), this->m_bytes , cudaMemcpyDeviceToHost); }
   typedef typename Array<T>::RealType*                RealArrType;
   typedef std::complex<typename Array<T>::RealType> * ComplexArrType;
-  typedef std::function<void (char*, int, int, int, int[3], RealArrType)>    RealSaveFunSig;
-  typedef std::function<void (char*, int, int, int, int[3], ComplexArrType)> ComplexSaveFunSig;
-  RealSaveFunSig    get_save_fun_real();
-  ComplexSaveFunSig get_save_fun_complex();
   void save_as_real(const char* fmt, const int it){
     char fn[256]; sprintf(fn, fmt, it);
     aoba::SaveArrayAsNumpy(fn,
@@ -76,13 +73,3 @@ template <typename T> void GPUArray<T>::ovwrt_with(CPUArray<T>& arr){
   assert(this->real_dims() == arr.real_dims()
          and "source and target array dimensions dont match up");
   cudaMemcpy(this->m_array, arr.void_ptr(), this->m_bytes, cudaMemcpyHostToDevice); }
-
-// template <> CPUArray<float>::RealSaveFunSig
-// CPUArray<float>::get_save_fun_real(){     return npy_save_float; }
-// template <> CPUArray<float>::ComplexSaveFunSig
-// CPUArray<float>::get_save_fun_complex(){  return npy_save_float_complex; }
-
-// template <> CPUArray<double>::RealSaveFunSig
-// CPUArray<double>::get_save_fun_real(){    return npy_save_double; }
-// template <> CPUArray<double>::ComplexSaveFunSig
-// CPUArray<double>::get_save_fun_complex(){ return npy_save_double_complex; }

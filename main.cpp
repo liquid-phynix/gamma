@@ -1,6 +1,7 @@
 #include <iostream>
 //#include <fstream>
 #include <cstdio>
+#include <cstring>
 #include <csignal>
 #include <algorithm>
 #include <string>
@@ -42,7 +43,17 @@ void sigint_handler(int){
   RUN = false;
   std::cerr << "\nterminating..." << std::endl; }
 
+void append_log(const char* fn, const char* str, bool first = false){
+  FILE* fp = first ? fopen(fn, "w") : fopen(fn, "a");
+  if(fp == NULL){
+    std::cout << "log cannot be appended" << std::endl;
+    return; }
+  fprintf(fp, "%s", str);
+  fclose(fp); }
+
 int main(int argc, char* argv[]){
+  signal(SIGINT, sigint_handler);
+
   int device, max_iters;
   int3 dims, miller;
   bool dims_set;
@@ -64,33 +75,34 @@ int main(int argc, char* argv[]){
   catch (TCLAP::ArgException& e){
     std::cerr << "error: " << e.error() << " for arg " << e.argId() << std::endl; }
 
+  CUERR(cudaSetDevice(device)); // mert az egeszeg a fontos mindenek elott
+
   // bcc initialization
   Problem<Float> prob(miller, dims, dims_set,
                       // psi-liquid
-                      -0.39279377398,
+                      -0.21525837323, // -0.39279377398,
                       // psi-solid
-                      -0.39279377398 + 0.043931,
+                      -0.21525837323 + 0.0085754, //-0.39279377398 + 0.043931,
                       // sigma ideal
                       PIX2 * sqrt(2.0),
                       // sigma correction
-                      1.0110354,
+                      1.00176005, // 1.0110354,
                       // eps
-                      0.3,
+                      0.1,
                       // zmul
                       30);
   dims = prob.m_dims;
 
-  CUERR(cudaSetDevice(device));
   std::cout << "device <" << device << "> selected" << std::endl;
   std::cout << "array logical dimensions <" << dims.x << "x" << dims.y << "x" << dims.z << ">" << std::endl;
   std::cout << "Canonical Miller-indices <" << miller << ">" << std::endl;
 
   CPUArray<Float> arr_master(dims);
-  CPUArray<Float> arr_master_2(dims);
-  GPUArray<Float> arr_pri(dims);
-  GPUArray<Float> arr_sec(dims);
-  GPUArray<Float> arr_energy(dims);
-  GPUArray<Float> arr_gpu_tmp(dims);
+  CPUArray<Float> arr_master_2(dims); // 0-initializing GPU arrays
+  GPUArray<Float> arr_pri(dims);      arr_pri.ovwrt_with(arr_master);
+  GPUArray<Float> arr_sec(dims);      arr_sec.ovwrt_with(arr_master);
+  GPUArray<Float> arr_energy(dims);   arr_energy.ovwrt_with(arr_master);
+  GPUArray<Float> arr_gpu_tmp(dims);  arr_gpu_tmp.ovwrt_with(arr_master);
 
   CufftPlan<Float, R2C> r2c(dims);
   CufftPlan<Float, C2R> c2r(dims);
@@ -101,25 +113,25 @@ int main(int argc, char* argv[]){
   arr_pri.ovwrt_with(arr_master);                                              // r-psi uploaded to arr_pr
   r2c.execute(arr_pri, arr_sec);                                               // k-psi in arr_sec
 
-
-  signal(SIGINT, sigint_handler);
-
   // problem solution
   int iters = 0;
   std::cerr << "iters\tconv\tgamma" << std::endl;
+
+  char progress[256];
+  append_log("progress.log", "", true);
+
   while(RUN && iters++ < max_iters){
     nonlin_kernel_call(arr_pri.real_ptr(), dims.x * dims.y * dims.z);          // r-nonlin in arr_pri
     r2c.execute(arr_pri);                                                      // k-nonlin in A0
     
-    if(iters % 100 == 0){
-      std::cout << iters;
+    if(iters % 1000 == 0){
       // testing convergence in spectral space
       update_kernel_call_status(arr_sec.complex_ptr(),                         // k-psi
                                 arr_pri.complex_ptr(),                         // k-nonlin
                                 arr_energy.complex_ptr(),
                                 arr_gpu_tmp.complex_ptr(),
-                                arr_pri.complex_dims(), prob.m_LENZ);          // k-psi' in arr_sec
-      c2r.execute(arr_sec, arr_pri);                                           // r-psi' in arr_pri
+                                arr_pri.complex_dims(), prob.m_LENZ);          // => k-psi' in arr_sec
+      c2r.execute(arr_sec, arr_pri);                                           // => r-psi' in arr_pri
       norm_kernel_call(arr_pri.real_ptr(), dims.x * dims.y * dims.z);
 
       c2r.execute(arr_gpu_tmp);
@@ -127,7 +139,7 @@ int main(int argc, char* argv[]){
       // cpu side of testing convergence 
       arr_master.ovwrt_with(arr_gpu_tmp);
       double conv = calc_conv_eq_max(arr_master);
-      printf("\t%.10e", conv);
+      //      printf("\t%.10e", conv);
       // cpu side of calculating interface energy
       c2r.execute(arr_energy);
       norm_kernel_call(arr_energy.real_ptr(), dims.x * dims.y * dims.z);
@@ -135,7 +147,13 @@ int main(int argc, char* argv[]){
       arr_master_2.ovwrt_with(arr_energy);
       //                             lin. part     r-psi
       double gamma = prob.calc_gamma(arr_master_2, arr_master);
-      printf("\t%.10e\n", gamma);
+      //      printf("\t%.10e\n", gamma);
+
+      sprintf(progress, "%d %.10e %.10e\n", iters, conv, gamma);
+      append_log("progress.log", progress);
+      printf("%s", progress);
+      fflush(stdout); 
+      
     }else{
       update_kernel_call(arr_sec.complex_ptr(),                                // k-psi
                          arr_pri.complex_ptr(),                                // k-nonlin
@@ -143,7 +161,6 @@ int main(int argc, char* argv[]){
       c2r.execute(arr_sec, arr_pri);                                           // r-psi' in arr_pri
       norm_kernel_call(arr_pri.real_ptr(), dims.x * dims.y * dims.z);
     }
-
   }
 
   arr_master.ovwrt_with(arr_pri);

@@ -59,7 +59,7 @@ int3 integrify(int i1, int i2, Irat r3){
 
 double find_basis(int m1, int m2, int m3, int3& pv_out, int3& qv_out){
   int mill2 = m1 * m1 + m2 * m2 + m3 * m3;
-  const int w = 10;
+  const int w = 20;
   double condition = std::numeric_limits<double>::infinity();
   for(int n1 = -w; n1 <= w; n1++){
     for(int n2 = -w; n2 <= w; n2++){
