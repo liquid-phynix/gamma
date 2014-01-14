@@ -53,6 +53,17 @@ template <typename T> struct CPUArray : public Array <T> {
     cudaMemcpy(this->m_array, arr.void_ptr(), this->m_bytes , cudaMemcpyDeviceToHost); }
   typedef typename Array<T>::RealType*                RealArrType;
   typedef std::complex<typename Array<T>::RealType> * ComplexArrType;
+  void from_file(std::string fn){
+    std::vector<T> tmp; int shape[3];
+    aoba::LoadArrayFromNumpy(fn, shape, tmp);
+    std::cerr << "shape: " << shape[0] << " " << shape[1] << " " << shape[2] << std::endl;
+    if(this->real_axis(0) != shape[0] ||
+       this->real_axis(1) != shape[1] ||
+       this->real_axis(2) != shape[2]){
+      std::cerr << "array dimension mismatch" << std::endl; 
+      abort(); }
+    T* arr_ptr = this->real_ptr();
+    for(int i = 0; i < shape[0] * shape[1] * shape[2]; i++) arr_ptr[i] = tmp[i]; }
   void save_as_real(const char* fmt, const int it){
     char fn[256]; sprintf(fn, fmt, it);
     aoba::SaveArrayAsNumpy(fn,
